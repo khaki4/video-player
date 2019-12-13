@@ -1,60 +1,33 @@
 import React from 'react';
 import { useMachine } from '@xstate/react';
-import { Machine, assign } from 'xstate';
 import { percentage, minutes, seconds } from "./utils";
+import videoMachine from './videoMachine';
+import './App.css';
 
-const videoMachine = new Machine({
-  id: 'videoMachine',
-  initial: 'loading',
-  context: {
-    video: null,
-    duration: 0,
-    elapsed: 0
-  },
-  states: {
-    loading: {
-      on: {
-        LOADED: 'ready',
-        FAIL: 'failure'
-      }
-    },
-    ready: {
-      initial: 'paused',
-      states: {
-        paused: {
-          on: {
-            PLAY: 'playing'
-          }
-        },
-        playing: {
-          on: {
-            PAUSE: 'paused',
-            END: 'ended',
-            TIMING: 'playing'
-          }
-        },
-        ended: {
-          on: {
-            PLAY: 'playing'
-          }
-        }
-      }
-    },
-    failure: { type: 'final'}
-  }
-})
+
 
 function App() {
+  const ref = React.useRef(null);
+  const [current, send] = useMachine(videoMachine);
+  const { duration, elapsed } = current.context;
+
+  console.log(current.value);
   return (
     <div className="App">
-      <video controls>
-        <source src="/test.mp4" type="video/mp4" />
+      <video
+        ref={ref}
+        onCanPlay={() => send('LOADED', { video: ref.current })}
+        onError={() => send('FAIL')}
+        onTimeUpdate={() => send('TIMING')}
+        onEnded={() => send('END')}
+      >
+        <source src="/test.mp4" type="video/mp4"/>
       </video>
 
       <div>
-        <ElapsedBar elapsed={0} duration={0} />
-        <Buttons />
-        <Timer elapsed={0} duration={0} />
+        <ElapsedBar elapsed={elapsed} duration={duration}/>
+        <Buttons current={current} send={send} />
+        <Timer elapsed={elapsed} duration={duration}/>
       </div>
     </div>
   );
@@ -62,8 +35,12 @@ function App() {
 
 export default App;
 
-const Buttons = () => {
-  return <button onClick={() => {}}>Play / Pause</button>
+const Buttons = ({ current, send }) => {
+  if (current.matches('ready.playing')) {
+    return <button onClick={() => send('PAUSE')}>Pause</button>
+  } else {
+    return <button onClick={() => send('PLAY')}>PLAY</button>
+  }
 };
 
 const ElapsedBar = ({ elapsed, duration }) => (
